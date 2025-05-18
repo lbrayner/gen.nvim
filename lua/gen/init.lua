@@ -490,7 +490,11 @@ M.run_command = function(cmd, opts)
         callback = function()
             if globals.job_id then vim.fn.jobstop(globals.job_id) end
             if globals.result_buffer then
-                vim.api.nvim_buf_delete(globals.result_buffer, {force = true})
+                local bufnr = globals.result_buffer
+                vim.schedule(function()
+                    if not vim.api.nvim_buf_is_valid(bufnr) then return end
+                    vim.api.nvim_buf_delete(bufnr, {force = true})
+                end)
             end
             reset(true) -- keep selection in case of subsequent retries
         end
