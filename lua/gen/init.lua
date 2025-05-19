@@ -484,7 +484,7 @@ M.run_command = function(cmd, opts)
     })
 
     local group = vim.api.nvim_create_augroup("gen", {clear = true})
-    vim.api.nvim_create_autocmd('WinClosed', {
+    vim.api.nvim_create_autocmd('BufHidden', {
         buffer = globals.result_buffer,
         group = group,
         callback = function()
