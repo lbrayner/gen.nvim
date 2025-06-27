@@ -273,9 +273,9 @@ M.exec = function(options)
                 globals.end_pos[3] = vim.fn.col("'>") - 1
             end -- in case of `V`, it would be maxcol instead
         else
-            local cursor = vim.fn.getpos(".")
-            globals.start_pos = cursor
-            globals.end_pos = globals.start_pos
+            globals.start_pos = { 0, vim.fn.line(".") - 1, 0, 0 }
+            globals.end_pos = vim.deepcopy(globals.start_pos)
+            globals.end_pos[3] = 2147483647 -- Maximum line length (vi_diff.txt)
         end
     end
 
@@ -286,14 +286,11 @@ M.exec = function(options)
                                                           0, -1, false), "\n")
     else
         content = table.concat(vim.api.nvim_buf_get_text(globals.curr_buffer,
-                                                         globals.start_pos[2] -
-                                                             1,
-                                                         globals.start_pos[3] -
-                                                             1,
-                                                         globals.end_pos[2] - 1,
+                                                         globals.start_pos[2],
+                                                         globals.start_pos[3],
+                                                         globals.end_pos[2],
                                                          globals.end_pos[3], {}),
                                "\n")
-
     end
     local function substitute_placeholders(input)
         if not input then return input end
