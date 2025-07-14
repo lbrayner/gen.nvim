@@ -13,7 +13,6 @@ local function reset(keep_selection)
         globals.job_id = nil
     end
     globals.result_buffer = nil
-    globals.float_win = nil
     globals.result_string = ""
     globals.context = nil
     globals.context_buffer = nil
@@ -93,7 +92,6 @@ local function close_window(opts)
 
         if not extracted then
             if not opts.no_auto_close then
-                vim.api.nvim_win_hide(globals.float_win)
                 if globals.result_buffer ~= nil then
                     vim.api.nvim_buf_delete(globals.result_buffer,
                                             {force = true})
@@ -116,9 +114,6 @@ local function close_window(opts)
     globals.end_pos[2] = globals.start_pos[2] + #lines - 1
     globals.end_pos[3] = string.len(lines[#lines])
     if not opts.no_auto_close then
-        if globals.float_win ~= nil then
-            vim.api.nvim_win_hide(globals.float_win)
-        end
         if globals.result_buffer ~= nil then
             vim.api.nvim_buf_delete(globals.result_buffer, {force = true})
         end
@@ -172,18 +167,26 @@ local function write_to_buffer(lines)
 
     local text = table.concat(lines or {}, "\n")
 
-    vim.api.nvim_set_option_value("modifiable", true,
-                                  {buf = globals.result_buffer})
-    vim.api.nvim_buf_set_text(globals.result_buffer, last_row - 1, last_col,
-                              last_row - 1, last_col, vim.split(text, "\n"))
+    vim.api.nvim_set_option_value(
+        "modifiable", true,
+        {buf = globals.result_buffer}
+    )
+    vim.api.nvim_buf_set_text(
+        globals.result_buffer, last_row - 1, last_col,
+        last_row - 1, last_col, vim.split(text, "\n")
+    )
 
-    if globals.float_win ~= nil and vim.api.nvim_win_is_valid(globals.float_win) then
-        local cursor_pos = vim.api.nvim_win_get_cursor(globals.float_win)
+    local wininfos = vim.tbl_filter(function(wininfo)
+        return wininfo.bufnr == globals.result_buffer
+    end, vim.fn.getwininfo())
 
+    for _, wininfo in ipairs(wininfos) do
+        local winid = wininfo.winid
+        local cursor_pos = vim.api.nvim_win_get_cursor(winid)
         -- Move the cursor to the end of the new lines
         if cursor_pos[1] == last_row then
             local new_last_row = last_row + #lines - 1
-            vim.api.nvim_win_set_cursor(globals.float_win, {new_last_row, 0})
+            vim.api.nvim_win_set_cursor(winid, {new_last_row, 0})
         end
     end
 
@@ -194,14 +197,14 @@ end
 local function create_window(cmd, opts)
     local function setup_window()
         globals.result_buffer = vim.fn.bufnr("%")
-        globals.float_win = vim.fn.win_getid()
+        local winid = vim.fn.win_getid()
         vim.api.nvim_set_option_value("filetype", opts.result_filetype,
                                       {buf = globals.result_buffer})
         vim.api.nvim_set_option_value("buftype", "nofile",
                                       {buf = globals.result_buffer})
-        vim.api.nvim_set_option_value("wrap", true, {win = globals.float_win})
+        vim.api.nvim_set_option_value("wrap", true, {win = winid})
         vim.api.nvim_set_option_value("linebreak", true,
-                                      {win = globals.float_win})
+                                      {win = winid})
     end
 
     local display_mode = opts.display_mode or M.display_mode
@@ -212,8 +215,7 @@ local function create_window(cmd, opts)
         local win_opts = vim.tbl_deep_extend("force", get_window_options(opts),
                                              opts.win_config)
         globals.result_buffer = vim.api.nvim_create_buf(false, true)
-        globals.float_win = vim.api.nvim_open_win(globals.result_buffer, true,
-                                                  win_opts)
+        vim.api.nvim_open_win(globals.result_buffer, true, win_opts)
         setup_window()
     elseif display_mode == "horizontal-split" then
         vim.cmd("split gen.nvim")
@@ -408,8 +410,8 @@ end
 
 M.run_command = function(cmd, opts)
     -- vim.print('run_command', cmd, opts)
-    if globals.result_buffer == nil or globals.float_win == nil or
-        not vim.api.nvim_win_is_valid(globals.float_win) then
+    if globals.result_buffer == nil or
+        not vim.api.nvim_buf_is_valid(globals.result_buffer) then
         create_window(cmd, opts)
         if opts.show_model then
             write_to_buffer({"# Chat with " .. opts.model, ""})
@@ -422,8 +424,8 @@ M.run_command = function(cmd, opts)
         -- stderr_buffered = opts.debug,
         on_stdout = function(_, data, _)
             -- window was closed, so cancel the job
-            if not globals.float_win or
-                not vim.api.nvim_win_is_valid(globals.float_win) then
+            if not globals.result_buffer or
+                not vim.api.nvim_buf_is_valid(globals.result_buffer) then
                 if globals.job_id then
                     vim.fn.jobstop(globals.job_id)
                 end
@@ -459,8 +461,8 @@ M.run_command = function(cmd, opts)
         on_stderr = function(_, data, _)
             if opts.debug then
                 -- window was closed, so cancel the job
-                if not globals.float_win or
-                    not vim.api.nvim_win_is_valid(globals.float_win) then
+                if not globals.result_buffer or
+                    not vim.api.nvim_buf_is_valid(globals.result_buffer) then
                     if globals.job_id then
                         vim.fn.jobstop(globals.job_id)
                     end
