@@ -227,7 +227,7 @@ local function create_window(cmd, opts)
         vim.cmd("edit gen.nvim")
         setup_window()
     else
-        vim.notify("Gen.nvim warning : Invalid display mode specified.", vim.log.levels.WARN)
+        vim.notify("Gen.nvim warning: Invalid display mode specified.", vim.log.levels.WARN)
         vim.cmd("edit gen.nvim")
         setup_window()
     end
@@ -301,6 +301,9 @@ M.exec = function(options)
         local text = input
         if string.find(text, "%$input") then
             local answer = vim.fn.input("Prompt: ")
+            if answer == "" then
+                return false, "User did not supply any input"
+            end
             text = string.gsub(text, "%$input", answer)
         end
 
@@ -310,7 +313,7 @@ M.exec = function(options)
                 error("Prompt uses $register_" .. rname .. " but register " ..
                           rname .. " is empty")
             end
-            return register
+            return true, register
         end)
 
         if string.find(text, "%$register") then
@@ -325,7 +328,7 @@ M.exec = function(options)
         content = string.gsub(content, "%%", "%%%%")
         text = string.gsub(text, "%$text", content)
         text = string.gsub(text, "%$filetype", vim.bo.filetype)
-        return text
+        return true, text
     end
 
     local prompt = opts.prompt
@@ -337,7 +340,17 @@ M.exec = function(options)
         end
     end
 
-    prompt = substitute_placeholders(prompt)
+    local success, result = substitute_placeholders(prompt)
+
+    if not success then
+        vim.notify(string.format(
+            "Gen.nvim warning: %s. Aborting.",
+            result
+        ), vim.log.levels.WARN)
+        return
+    end
+
+    prompt = result
 
     if type(opts.extract) == "string" then
         opts.extract = substitute_placeholders(opts.extract)
