@@ -506,8 +506,9 @@ M.run_command = function(cmd, opts)
             if globals.result_buffer then
                 local bufnr = globals.result_buffer
                 vim.schedule(function()
-                    if not vim.api.nvim_buf_is_valid(bufnr) then return end
-                    vim.api.nvim_buf_delete(bufnr, {force = true})
+                    if vim.api.nvim_buf_is_valid(bufnr) then
+                        vim.api.nvim_buf_delete(bufnr, {force = true})
+                    end
                 end)
             end
             reset(true) -- keep selection in case of subsequent retries
