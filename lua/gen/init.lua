@@ -234,8 +234,14 @@ local function create_window(cmd, opts)
     vim.keymap.set("n", "<esc>", function()
         if globals.job_id then vim.fn.jobstop(globals.job_id) end
     end, {buffer = globals.result_buffer})
-    vim.keymap.set("n", M.quit_map, "<cmd>quit<cr>",
-                   {buffer = globals.result_buffer})
+    vim.keymap.set("n", M.quit_map, function()
+        if vim.api.nvim_win_get_config(0).relative ~= "" then
+            -- Only works if window is floating
+            vim.api.nvim_win_close(0, true)
+        else
+            vim.notify("Gen.nvim warning: not a floating window, will not close.", vim.log.levels.WARN)
+        end
+    end, {buffer = globals.result_buffer})
     vim.keymap.set("n", M.accept_map, function()
         opts.replace = true
         close_window(opts)
