@@ -216,6 +216,7 @@ local function create_window(cmd, opts)
                                              opts.win_config)
         globals.result_buffer = vim.api.nvim_create_buf(false, true)
         vim.api.nvim_open_win(globals.result_buffer, true, win_opts)
+        vim.api.nvim_buf_set_name(globals.result_buffer, "gen.nvim")
         setup_window()
     elseif display_mode == "horizontal-split" then
         vim.cmd("split gen.nvim")
