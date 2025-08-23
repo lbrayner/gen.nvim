@@ -105,14 +105,14 @@ local function close_window(opts)
         lines = vim.split(globals.result_string, "\n", {trimempty = true})
     end
     lines = trim_table(lines)
-    vim.api.nvim_buf_set_text(globals.curr_buffer, globals.start_pos[2] - 1,
-                              globals.start_pos[3] - 1, globals.end_pos[2] - 1,
-                              globals.end_pos[3] > globals.start_pos[3] and
-                                  globals.end_pos[3] or globals.end_pos[3] - 1,
+    vim.api.nvim_buf_set_text(globals.curr_buffer, globals.start_pos[1] - 1,
+                              globals.start_pos[2] - 1, globals.end_pos[1] - 1,
+                              globals.end_pos[2] > globals.start_pos[2] and
+                                  globals.end_pos[2] or globals.end_pos[2] - 1,
                               lines)
     -- in case another replacement happens
-    globals.end_pos[2] = globals.start_pos[2] + #lines - 1
-    globals.end_pos[3] = string.len(lines[#lines])
+    globals.end_pos[1] = globals.start_pos[1] + #lines - 1
+    globals.end_pos[2] = string.len(lines[#lines])
     if not opts.no_auto_close then
         if globals.result_buffer ~= nil then
             vim.api.nvim_buf_delete(globals.result_buffer, {force = true})
@@ -271,38 +271,16 @@ M.exec = function(options)
 
     if type(opts.init) == 'function' then opts.init(opts) end
 
-    if globals.result_buffer ~= vim.fn.winbufnr(0) then
-        globals.curr_buffer = vim.fn.winbufnr(0)
-        local mode = opts.mode or vim.fn.mode()
-        if mode == "v" or mode == "V" then
-            globals.start_pos = vim.fn.getpos("'<")
-            globals.end_pos = vim.fn.getpos("'>")
-            local max_col = vim.api.nvim_win_get_width(0)
-            if globals.end_pos[3] > max_col then
-                globals.end_pos[3] = vim.fn.col("'>") - 1
-            end -- in case of `V`, it would be maxcol instead
-        else
-            globals.start_pos = { 0, vim.fn.line("."), 1, 0 }
-            globals.end_pos = vim.deepcopy(globals.start_pos)
-            globals.end_pos[3] = 2147483647 -- Maximum line length (vi_diff.txt)
-        end
-    end
-
-    local content
-    if globals.start_pos == globals.end_pos then
-        -- get text from whole buffer
-        content = table.concat(vim.api.nvim_buf_get_lines(globals.curr_buffer,
-                                                          0, -1, false), "\n")
-    else
-        content = table.concat(vim.api.nvim_buf_get_text(globals.curr_buffer,
+    local content = not globals.curr_buffer and "" or
+                    table.concat(vim.api.nvim_buf_get_text(
+                                                         globals.curr_buffer,
+                                                         globals.start_pos[1] -
+                                                             1,
                                                          globals.start_pos[2] -
                                                              1,
-                                                         globals.start_pos[3] -
-                                                             1,
-                                                         globals.end_pos[2] - 1,
-                                                         globals.end_pos[3], {}),
+                                                         globals.end_pos[1] - 1,
+                                                         globals.end_pos[2], {}),
                                "\n")
-    end
     local function substitute_placeholders(input)
         if not input then return input end
         local text = input
@@ -564,25 +542,42 @@ local function select_prompt(cb)
 end
 
 vim.api.nvim_create_user_command("Gen", function(arg)
-    local mode
-    if arg.range == 0 then
-        mode = "n"
-    else
-        mode = "v"
+    local line = vim.fn.line(".")
+    globals.curr_buffer = vim.fn.winbufnr(0)
+    globals.start_pos = { line, 0 }
+    globals.end_pos = { line, 2147483647 - 1 } -- Maximum line length (vi_diff.txt)
+
+    if arg.count > 0 then
+        local line1 = arg.line1
+        local line2 = arg.line2
+        local pos_start = vim.api.nvim_buf_get_mark(0, "<")
+        local pos_end = vim.api.nvim_buf_get_mark(0, ">")
+
+        -- line range
+        globals.start_pos[1] = arg.line1
+        globals.end_pos[1] = arg.line2
+
+        if line1 == pos_start[1] and line2 == pos_end[1] then
+            -- visual selection
+            globals.start_pos = pos_start
+            globals.end_pos = pos_end
+        end
     end
+
+    globals.start_pos[2] = globals.start_pos[2] + 1
+    globals.end_pos[2] = globals.end_pos[2] + 1
+
     if arg.args ~= "" then
         local prompt = M.prompts[arg.args]
         if not prompt then
             print("Invalid prompt '" .. arg.args .. "'")
             return
         end
-        local p = vim.tbl_deep_extend("force", {mode = mode}, prompt)
-        return M.exec(p)
+        return M.exec(prompt)
     end
     select_prompt(function(item)
         if not item then return end
-        local p = vim.tbl_deep_extend("force", {mode = mode}, M.prompts[item])
-        M.exec(p)
+        M.exec(M.prompts[item])
     end)
 end, {
     range = true,
