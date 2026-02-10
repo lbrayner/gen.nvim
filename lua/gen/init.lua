@@ -372,14 +372,19 @@ M.exec = function(options)
     end
     cmd = string.gsub(cmd, "%$model", opts.model)
     if string.find(cmd, "%$body") then
-        local body = vim.tbl_extend("force",
-                                    {model = opts.model, stream = true},
-                                    opts.body)
-        local messages = {}
-        if globals.context then messages = globals.context end
-        -- Add new prompt to the context
-        table.insert(messages, {role = "user", content = prompt})
-        body.messages = messages
+        local body = M.body and type(M.body) == "function" and
+        M.body(prompt) or (function()
+            local body = vim.tbl_extend("force",
+            {model = opts.model, stream = true},
+            opts.body)
+            local messages = {}
+            if globals.context then messages = globals.context end
+            -- Add new prompt to the context
+            table.insert(messages, {role = "user", content = prompt})
+            body.messages = messages
+            return body
+        end)()
+
         if M.model_options ~= nil then -- llamacpp server - model options: eg. temperature, top_k, top_p
             body = vim.tbl_extend("force", body, M.model_options)
         end
