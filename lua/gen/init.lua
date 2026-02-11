@@ -444,6 +444,13 @@ M.run_command = function(cmd, opts)
                 return
             end
             if opts.debug then vim.print('Response data: ', data) end
+
+            if opts.process_response and type (opts.process_response) == "function" then
+                opts.globals = globals
+                opts.write_to_buffer = write_to_buffer
+                return opts.process_response(data, opts)
+            end
+
             for _, line in ipairs(data) do
                 partial_data = partial_data .. line
                 if line:sub(-1) == "}" then
